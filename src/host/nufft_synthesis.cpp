@@ -10,6 +10,8 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <iostream>
+#include <fstream>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -21,6 +23,7 @@
 #include "host/virtual_vis.hpp"
 #include "memory/copy.hpp"
 #include "nufft_util.hpp"
+#include "profile_workloads.hpp"
 
 namespace bipp {
 namespace host {
@@ -216,6 +219,40 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
             transform.execute(virtVisCurrentSlice.data(), output.data());
             ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output",
                                       output.sub_view({0}, {imgSize}));
+
+            /* PROFILE WORKLOAD */
+            {
+              // Create a workloads directory if it does not exist
+              std::string folder = "workloads";
+              if (access(folder.c_str(), F_OK) == -1) {
+                if (mkdir(folder.c_str(), 0777) == -1) {
+                  ctx_->logger().log(BIPP_LOG_LEVEL_ERROR, "Failed to create directory: {}", folder);
+                  return;
+                }
+              }
+              // Calculate the size of the FFT grid
+              int nspread = std::ceil(-log10(opt_.tolerance / (double)10.0));
+              float sizeX = get_fft_size<T>(pixelXSlice.data(), imgSize, uvwXSlice.data(), inputSize, nspread);
+              float sizeY = get_fft_size<T>(pixelYSlice.data(), imgSize, uvwYSlice.data(), inputSize, nspread);
+              float sizeZ = get_fft_size<T>(pixelZSlice.data(), imgSize, uvwZSlice.data(), inputSize, nspread);
+              std::ofstream csvFile;
+              csvFile.open("workloads/workloads.csv", std::ios::out | std::ios::app);
+              if (csvFile.tellp() == 0) {
+                  csvFile << "id,tol,nu_input,nu_output,sizeX,sizeY,sizeZ,datasize\n";
+              }
+              csvFile << workload_number << "," << opt_.tolerance << "," << inputSize << "," << imgSize << "," << sizeX << "," << sizeY << "," << sizeZ << "," << sizeof(T) << "\n";
+              csvFile.close();
+              // 
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_x.bin", pixelXSlice.data(), pixelXSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_y.bin", pixelYSlice.data(), pixelYSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_z.bin", pixelZSlice.data(), pixelZSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_u.bin", uvwXSlice.data(), uvwXSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_v.bin", uvwYSlice.data(), uvwYSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_w.bin", uvwZSlice.data(), uvwZSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_i.bin", virtVisCurrentSlice.data(), virtVisCurrentSlice.size());
+              write_to_file<T>("workloads/wl_" + std::to_string(workload_number) + "_o.bin", output.data(), output.size());
+              workload_number++;
+            }
 
             auto* __restrict__ outputPtr = output.data();
             auto* __restrict__ imgPtr = &img_[{imgBegin, j}];

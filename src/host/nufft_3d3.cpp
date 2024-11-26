@@ -9,6 +9,8 @@
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
 
+#include <iostream>
+
 namespace bipp {
 namespace host {
 
@@ -19,6 +21,8 @@ Nufft3d3<double>::Nufft3d3(int iflag, double tol, std::size_t numTrans, std::siz
   finufft_opts opts;
   finufft_default_opts(&opts);
   opts.upsampfac = 2.0; // must be set to prevent automatic selection based on tol
+  opts.debug = 1; // Enable all debug output
+  opts.spread_debug = 1; // Enable all debug output
   finufft_plan p;
   if (finufft_makeplan(3, 3, nullptr, iflag, numTrans, tol, &p, &opts)) throw FiNUFFTError();
 
@@ -45,6 +49,8 @@ Nufft3d3<float>::Nufft3d3(int iflag, float tol, std::size_t numTrans, std::size_
   finufft_opts opts;
   finufftf_default_opts(&opts);
   opts.upsampfac = 2.0; // must be set to prevent automatic selection based on tol
+  opts.debug = 1; // Enable all debug output
+  opts.spread_debug = 1; // Enable all debug output
   finufftf_plan p;
   if (finufftf_makeplan(3, 3, nullptr, iflag, numTrans, tol, &p, &opts)) throw FiNUFFTError();
 
